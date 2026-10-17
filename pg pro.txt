@@ -1,0 +1,752 @@
+<?php
+
+// ===============================
+// PG RENT MANAGEMENT SYSTEM
+// ===============================
+
+// Data files
+$studentFile = "students.json";
+$paymentFile = "payments.json";
+
+// Create files if they don't exist
+if (!file_exists($studentFile)) {
+    file_put_contents($studentFile, json_encode([]));
+}
+
+if (!file_exists($paymentFile)) {
+    file_put_contents($paymentFile, json_encode([]));
+}
+
+// Read data
+$students = json_decode(file_get_contents($studentFile), true);
+$payments = json_decode(file_get_contents($paymentFile), true);
+
+$message = "";
+
+
+// ===============================
+// ADD STUDENT
+// ===============================
+
+if (isset($_POST["add_student"])) {
+
+    $student = [
+        "id" => time(),
+        "name" => $_POST["name"],
+        "phone" => $_POST["phone"],
+        "room" => $_POST["room"],
+        "rent" => (float)$_POST["rent"],
+        "due_day" => (int)$_POST["due_day"]
+    ];
+
+    $students[] = $student;
+
+    file_put_contents(
+        $studentFile,
+        json_encode($students, JSON_PRETTY_PRINT)
+    );
+
+    $message = "Student added successfully!";
+}
+
+
+// ===============================
+// PAY RENT
+// ===============================
+
+if (isset($_POST["pay_rent"])) {
+
+    $studentId = $_POST["student_id"];
+    $amount = (float)$_POST["amount"];
+
+    foreach ($students as $student) {
+
+        if ($student["id"] == $studentId) {
+
+            $payment = [
+                "id" => time(),
+                "student_id" => $student["id"],
+                "name" => $student["name"],
+                "amount" => $amount,
+                "payment_date" => date("Y-m-d"),
+                "rent_month" => date("Y-m")
+            ];
+
+            $payments[] = $payment;
+
+            file_put_contents(
+                $paymentFile,
+                json_encode($payments, JSON_PRETTY_PRINT)
+            );
+
+            $message = "Rent paid successfully for " . $student["name"];
+
+            break;
+        }
+    }
+}
+
+
+// ===============================
+// DELETE STUDENT
+// ===============================
+
+if (isset($_GET["delete"])) {
+
+    $deleteId = $_GET["delete"];
+
+    $newStudents = [];
+
+    foreach ($students as $student) {
+
+        if ($student["id"] != $deleteId) {
+            $newStudents[] = $student;
+        }
+    }
+
+    $students = $newStudents;
+
+    file_put_contents(
+        $studentFile,
+        json_encode($students, JSON_PRETTY_PRINT)
+    );
+
+    $message = "Student deleted successfully!";
+}
+
+
+// ===============================
+// CHECK IF RENT PAID THIS MONTH
+// ===============================
+
+function rentPaid($studentId, $payments)
+{
+    $currentMonth = date("Y-m");
+
+    foreach ($payments as $payment) {
+
+        if (
+            $payment["student_id"] == $studentId &&
+            $payment["rent_month"] == $currentMonth
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+// ===============================
+// RENT NOTIFICATION
+// ===============================
+
+function rentNotification($student, $payments)
+{
+    if (rentPaid($student["id"], $payments)) {
+
+        return "<span class='paid'>✓ Rent Paid</span>";
+    }
+
+    $today = date("Y-m-d");
+
+    $dueDay = str_pad(
+        $student["due_day"],
+        2,
+        "0",
+        STR_PAD_LEFT
+    );
+
+    $dueDate = date("Y-m") . "-" . $dueDay;
+
+    $daysLeft =
+        (strtotime($dueDate) - strtotime($today)) / 86400;
+
+    if ($daysLeft < 0) {
+
+        return "<span class='overdue'>
+                ⚠ Rent Overdue
+                </span>";
+
+    } elseif ($daysLeft == 0) {
+
+        return "<span class='today'>
+                🔔 Rent Due Today
+                </span>";
+
+    } elseif ($daysLeft <= 5) {
+
+        return "<span class='soon'>
+                🔔 Due in " .
+                ceil($daysLeft) .
+                " days
+                </span>";
+
+    } else {
+
+        return "<span class='normal'>
+                Rent Not Due
+                </span>";
+    }
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>PG Rent Management System</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f4f7;
+            margin: 0;
+        }
+
+        header {
+            background: #243b55;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1100px;
+            margin: 30px auto;
+        }
+
+        .message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #243b55;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #243b55;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #141e30;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #243b55;
+            color: white;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        .paid {
+            color: green;
+            font-weight: bold;
+        }
+
+        .overdue {
+            color: red;
+            font-weight: bold;
+        }
+
+        .today {
+            color: red;
+            font-weight: bold;
+        }
+
+        .soon {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .normal {
+            color: #555;
+        }
+
+        .delete {
+            color: red;
+            text-decoration: none;
+        }
+
+        .pay-form {
+            display: flex;
+            gap: 5px;
+        }
+
+        .pay-form input {
+            width: 100px;
+            margin: 0;
+        }
+
+        @media(max-width: 800px) {
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 6px;
+            }
+
+            .pay-form {
+                display: block;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+
+<header>
+
+    <h1>🏠 PG Rent Management System</h1>
+
+    <p>Student & Rent Management</p>
+
+</header>
+
+
+<div class="container">
+
+
+<?php if ($message != ""): ?>
+
+    <div class="message">
+
+        <?php echo htmlspecialchars($message); ?>
+
+    </div>
+
+<?php endif; ?>
+
+
+<!-- ==========================
+     ADD STUDENT
+=========================== -->
+
+<div class="card">
+
+    <h2>➕ Add Student</h2>
+
+    <form method="post">
+
+        <label>Student Name</label>
+
+        <input
+            type="text"
+            name="name"
+            placeholder="Enter student name"
+            required
+        >
+
+
+        <label>Phone Number</label>
+
+        <input
+            type="text"
+            name="phone"
+            placeholder="Enter phone number"
+            required
+        >
+
+
+        <label>Room Number</label>
+
+        <input
+            type="text"
+            name="room"
+            placeholder="Example: 101"
+            required
+        >
+
+
+        <label>Monthly Rent</label>
+
+        <input
+            type="number"
+            name="rent"
+            placeholder="Example: 8000"
+            required
+        >
+
+
+        <label>Rent Due Day</label>
+
+        <input
+            type="number"
+            name="due_day"
+            min="1"
+            max="31"
+            placeholder="Example: 5"
+            required
+        >
+
+
+        <button type="submit" name="add_student">
+
+            Add Student
+
+        </button>
+
+    </form>
+
+</div>
+
+
+<!-- ==========================
+     STUDENT LIST
+=========================== -->
+
+<div class="card">
+
+    <h2>👨‍🎓 Students & Rent Status</h2>
+
+
+<?php if (count($students) == 0): ?>
+
+    <p>No students added yet.</p>
+
+<?php else: ?>
+
+
+<table>
+
+<tr>
+
+    <th>Name</th>
+
+    <th>Phone</th>
+
+    <th>Room</th>
+
+    <th>Monthly Rent</th>
+
+    <th>Due Day</th>
+
+    <th>Rent Status</th>
+
+    <th>Pay Rent</th>
+
+    <th>Delete</th>
+
+</tr>
+
+
+<?php foreach ($students as $student): ?>
+
+
+<tr>
+
+    <td>
+
+        <?php
+        echo htmlspecialchars($student["name"]);
+        ?>
+
+    </td>
+
+
+    <td>
+
+        <?php
+        echo htmlspecialchars($student["phone"]);
+        ?>
+
+    </td>
+
+
+    <td>
+
+        <?php
+        echo htmlspecialchars($student["room"]);
+        ?>
+
+    </td>
+
+
+    <td>
+
+        ₹<?php
+        echo number_format($student["rent"], 2);
+        ?>
+
+    </td>
+
+
+    <td>
+
+        <?php
+        echo $student["due_day"];
+        ?>
+
+    </td>
+
+
+    <td>
+
+        <?php
+        echo rentNotification(
+            $student,
+            $payments
+        );
+        ?>
+
+    </td>
+
+
+    <td>
+
+        <?php if (!rentPaid($student["id"], $payments)): ?>
+
+
+        <form method="post" class="pay-form">
+
+            <input
+                type="hidden"
+                name="student_id"
+                value="<?php echo $student["id"]; ?>"
+            >
+
+
+            <input
+                type="number"
+                name="amount"
+                value="<?php echo $student["rent"]; ?>"
+                required
+            >
+
+
+            <button
+                type="submit"
+                name="pay_rent"
+            >
+                Pay
+            </button>
+
+        </form>
+
+
+        <?php else: ?>
+
+            <span class="paid">
+                Paid
+            </span>
+
+        <?php endif; ?>
+
+    </td>
+
+
+    <td>
+
+        <a
+            class="delete"
+            href="?delete=<?php echo $student["id"]; ?>"
+            onclick="return confirm('Delete this student?')"
+        >
+            Delete
+        </a>
+
+    </td>
+
+</tr>
+
+
+<?php endforeach; ?>
+
+
+</table>
+
+
+<?php endif; ?>
+
+</div>
+
+
+<!-- ==========================
+     NOTIFICATIONS
+=========================== -->
+
+<div class="card">
+
+    <h2>🔔 Rent Notifications</h2>
+
+
+<?php if (count($students) == 0): ?>
+
+    <p>No students available.</p>
+
+<?php else: ?>
+
+
+<?php foreach ($students as $student): ?>
+
+    <p>
+
+        <strong>
+
+            <?php
+            echo htmlspecialchars($student["name"]);
+            ?>
+
+        </strong>
+
+        -
+
+        <?php
+        echo rentNotification(
+            $student,
+            $payments
+        );
+        ?>
+
+    </p>
+
+<?php endforeach; ?>
+
+
+<?php endif; ?>
+
+</div>
+
+
+<!-- ==========================
+     PAYMENT HISTORY
+=========================== -->
+
+<div class="card">
+
+    <h2>💰 Payment History</h2>
+
+
+<?php if (count($payments) == 0): ?>
+
+    <p>No payments recorded yet.</p>
+
+<?php else: ?>
+
+
+<table>
+
+<tr>
+
+    <th>Student</th>
+
+    <th>Amount</th>
+
+    <th>Payment Date</th>
+
+    <th>Rent Month</th>
+
+</tr>
+
+
+<?php foreach (array_reverse($payments) as $payment): ?>
+
+
+<tr>
+
+    <td>
+
+        <?php
+        echo htmlspecialchars($payment["name"]);
+        ?>
+
+    </td>
+
+
+    <td>
+
+        ₹<?php
+        echo number_format(
+            $payment["amount"],
+            2
+        );
+        ?>
+
+    </td>
+
+
+    <td>
+
+        <?php
+        echo $payment["payment_date"];
+        ?>
+
+    </td>
+
+
+    <td>
+
+        <?php
+        echo $payment["rent_month"];
+        ?>
+
+    </td>
+
+</tr>
+
+
+<?php endforeach; ?>
+
+
+</table>
+
+
+<?php endif; ?>
+
+</div>
+
+
+</div>
+
+</body>
+
+</html>
